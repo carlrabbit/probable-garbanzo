@@ -1,0 +1,9 @@
+; Unshipped analyzer releases
+; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
+
+### New Rules
+
+Rule ID | Category | Severity | Notes
+--------|----------|----------|-------
+XML001 | Documentation | Warning | ClassXmlCommentAnalyzer
+XML002 | Documentation | Warning | EmptyParamTagAnalyzer
