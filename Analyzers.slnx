@@ -4,5 +4,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Analyzers.Tests/Analyzers.Tests.csproj" />
+    <Project Path="tests/TUnit.Tests/TUnit.Tests.csproj" />
   </Folder>
 </Solution>
