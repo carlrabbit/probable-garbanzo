@@ -1,9 +1,11 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Analyzers/Analyzers.csproj" />
+    <Project Path="src/MetricsGenerator/MetricsGenerator.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Analyzers.Tests/Analyzers.Tests.csproj" />
+    <Project Path="tests/MetricsGenerator.Tests/MetricsGenerator.Tests.csproj" />
     <Project Path="tests/TUnit.Tests/TUnit.Tests.csproj" />
   </Folder>
 </Solution>
