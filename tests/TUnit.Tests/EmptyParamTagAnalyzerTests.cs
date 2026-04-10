@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 using Analyzers;
 using Microsoft.CodeAnalysis;
-using Roslynator.Testing.CSharp;
 
 namespace TUnit.Tests;
 
@@ -12,11 +11,12 @@ public class EmptyParamTagAnalyzerTests
     : TUnitDiagnosticVerifier<EmptyParamTagAnalyzer, EmptyParamTagFixer>
 {
     /// <inheritdoc/>
-    protected override CSharpTestOptions GetTestOptions() =>
-        CSharpTestOptions.Default.WithMetadataReferences(
-            CSharpTestOptions.Default.MetadataReferences.Add(
-                MetadataReference.CreateFromFile(
-                    typeof(Microsoft.Extensions.Configuration.IConfiguration).Assembly.Location)));
+    protected override IEnumerable<MetadataReference> AdditionalReferences =>
+        new[]
+        {
+            MetadataReference.CreateFromFile(
+                typeof(Microsoft.Extensions.Configuration.IConfiguration).Assembly.Location),
+        };
 
     /// <inheritdoc/>
     public override DiagnosticDescriptor Descriptor => EmptyParamTagAnalyzer.Rule;
