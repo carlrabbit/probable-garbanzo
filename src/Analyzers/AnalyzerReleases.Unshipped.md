@@ -7,3 +7,4 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 XML001 | Documentation | Warning | ClassXmlCommentAnalyzer
 XML002 | Documentation | Warning | EmptyParamTagAnalyzer
+XML003 | Documentation | Warning | EmptyReturnsTagAnalyzer
