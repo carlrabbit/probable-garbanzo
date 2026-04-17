@@ -40,6 +40,33 @@ public class TUnitTestPropertyConventionAnalyzerTests
     }
 
     [Test]
+    public async Task NoDiagnostic_WhenTestAttributeIsNotFromTUnit()
+    {
+        await VerifyNoDiagnosticAsync("""
+            using System;
+
+            public sealed class TestAttribute : Attribute
+            {
+            }
+
+            public sealed class PropertyAttribute : Attribute
+            {
+                public PropertyAttribute(string name, string value)
+                {
+                }
+            }
+
+            public class MyTests
+            {
+                [Test]
+                [Property("TestType", "UnitTest")]
+                [Property("TestTargetSpec", "MySpec")]
+                public void Run() { }
+            }
+            """);
+    }
+
+    [Test]
     public async Task Fix_AddsMissingPropertiesWithTbd()
     {
         await VerifyDiagnosticAndFixAsync(

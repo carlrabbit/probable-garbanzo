@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -75,8 +74,7 @@ public sealed class EmptyParamTagAnalyzer : DiagnosticAnalyzer
                 if (paramName is null)
                     continue;
 
-                ParameterSyntax? parameter = methodDeclaration.ParameterList.Parameters
-                    .FirstOrDefault(p => p.Identifier.Text == paramName);
+                ParameterSyntax? parameter = FindParameter(methodDeclaration, paramName);
 
                 if (parameter is null)
                     continue;
@@ -88,6 +86,17 @@ public sealed class EmptyParamTagAnalyzer : DiagnosticAnalyzer
                     Diagnostic.Create(Rule, element.GetLocation(), paramName));
             }
         }
+    }
+
+    private static ParameterSyntax? FindParameter(MethodDeclarationSyntax methodDeclaration, string paramName)
+    {
+        foreach (ParameterSyntax parameter in methodDeclaration.ParameterList.Parameters)
+        {
+            if (parameter.Identifier.Text == paramName)
+                return parameter;
+        }
+
+        return null;
     }
 
     private static bool IsElementContentEmpty(XmlElementSyntax element)
