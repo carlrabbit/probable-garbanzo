@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -18,6 +17,10 @@ public sealed class TUnitTestPropertyConventionAnalyzer : DiagnosticAnalyzer
 
     private const string TestTypeProperty = "TestType";
     private const string TestTargetSpecProperty = "TestTargetSpec";
+    private static readonly ImmutableArray<string> TUnitTestAttributeNames =
+        ImmutableArray.Create("Test", "TestAttribute", "TUnit.Test", "TUnit.TestAttribute");
+    private static readonly ImmutableArray<string> TUnitPropertyAttributeNames =
+        ImmutableArray.Create("Property", "PropertyAttribute", "TUnit.Property", "TUnit.PropertyAttribute");
 
     /// <summary>The diagnostic descriptor for this analyzer.</summary>
     public static readonly DiagnosticDescriptor Rule = new DiagnosticDescriptor(
@@ -91,10 +94,18 @@ public sealed class TUnitTestPropertyConventionAnalyzer : DiagnosticAnalyzer
 
     internal static ImmutableArray<AttributeSyntax> GetTUnitPropertyAttributes(MethodDeclarationSyntax methodDeclaration, SemanticModel semanticModel)
     {
-        return methodDeclaration.AttributeLists
-            .SelectMany(al => al.Attributes)
-            .Where(a => IsTUnitPropertyAttribute(a, semanticModel))
-            .ToImmutableArray();
+        var builder = ImmutableArray.CreateBuilder<AttributeSyntax>();
+
+        foreach (AttributeListSyntax attributeList in methodDeclaration.AttributeLists)
+        {
+            foreach (AttributeSyntax attribute in attributeList.Attributes)
+            {
+                if (IsTUnitPropertyAttribute(attribute, semanticModel))
+                    builder.Add(attribute);
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     internal static bool IsValidTestType(string? value) =>
@@ -112,6 +123,9 @@ public sealed class TUnitTestPropertyConventionAnalyzer : DiagnosticAnalyzer
 
     private static bool IsTUnitTestAttribute(AttributeSyntax attribute, SemanticModel semanticModel)
     {
+        if (!IsPotentialTUnitAttributeName(attribute, TUnitTestAttributeNames))
+            return false;
+
         if (semanticModel.GetSymbolInfo(attribute).Symbol is IMethodSymbol symbol)
         {
             INamedTypeSymbol attributeType = symbol.ContainingType;
@@ -119,13 +133,14 @@ public sealed class TUnitTestPropertyConventionAnalyzer : DiagnosticAnalyzer
                    attributeType.ContainingNamespace.ToDisplayString().StartsWith("TUnit");
         }
 
-        string name = attribute.Name.ToString();
-        return name == "Test" || name == "TestAttribute" ||
-               name == "TUnit.Test" || name == "TUnit.TestAttribute";
+        return true;
     }
 
     private static bool IsTUnitPropertyAttribute(AttributeSyntax attribute, SemanticModel semanticModel)
     {
+        if (!IsPotentialTUnitAttributeName(attribute, TUnitPropertyAttributeNames))
+            return false;
+
         if (semanticModel.GetSymbolInfo(attribute).Symbol is IMethodSymbol symbol)
         {
             INamedTypeSymbol attributeType = symbol.ContainingType;
@@ -133,8 +148,21 @@ public sealed class TUnitTestPropertyConventionAnalyzer : DiagnosticAnalyzer
                    attributeType.ContainingNamespace.ToDisplayString().StartsWith("TUnit");
         }
 
+        return true;
+    }
+
+    private static bool IsPotentialTUnitAttributeName(
+        AttributeSyntax attribute,
+        ImmutableArray<string> allowedNames)
+    {
         string name = attribute.Name.ToString();
-        return name == "Property" || name == "PropertyAttribute" ||
-               name == "TUnit.Property" || name == "TUnit.PropertyAttribute";
+
+        foreach (string allowedName in allowedNames)
+        {
+            if (name == allowedName)
+                return true;
+        }
+
+        return false;
     }
 }
