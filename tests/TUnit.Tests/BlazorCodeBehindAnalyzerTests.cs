@@ -10,13 +10,12 @@ using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
-using Xunit;
 
-namespace Analyzers.Tests;
+namespace TUnit.Tests;
 
 public class BlazorCodeBehindAnalyzerTests
 {
-    [Fact]
+    [Test]
     public async Task Diagnostic_WhenCodeBlockHasMoreThan20NonEmptyLines()
     {
         const string razor = """
@@ -48,11 +47,12 @@ public class BlazorCodeBehindAnalyzerTests
             """;
 
         ImmutableArray<Diagnostic> diagnostics = await GetDiagnosticsAsync("/Test/Counter.razor", razor);
+        Diagnostic[] ruleDiagnostics = diagnostics.Where(d => d.Id == BlazorCodeBehindAnalyzer.DiagnosticId).ToArray();
 
-        _ = Assert.Single(diagnostics.Where(d => d.Id == BlazorCodeBehindAnalyzer.DiagnosticId));
+        await Assert.That(ruleDiagnostics.Length).IsEqualTo(1);
     }
 
-    [Fact]
+    [Test]
     public async Task NoDiagnostic_WhenCodeBlockHas20OrFewerNonEmptyLines()
     {
         const string razor = """
@@ -81,11 +81,45 @@ public class BlazorCodeBehindAnalyzerTests
             """;
 
         ImmutableArray<Diagnostic> diagnostics = await GetDiagnosticsAsync("/Test/Counter.razor", razor);
+        Diagnostic[] ruleDiagnostics = diagnostics.Where(d => d.Id == BlazorCodeBehindAnalyzer.DiagnosticId).ToArray();
 
-        Assert.Empty(diagnostics.Where(d => d.Id == BlazorCodeBehindAnalyzer.DiagnosticId));
+        await Assert.That(ruleDiagnostics.Length).IsEqualTo(0);
     }
 
-    [Fact]
+    [Test]
+    public async Task Diagnostic_WhenInjectDirectivesExceedLimit()
+    {
+        const string razor = """
+            @inject Service1 Service1
+            @inject Service2 Service2
+            @inject Service3 Service3
+            @inject Service4 Service4
+            @inject Service5 Service5
+            @inject Service6 Service6
+            @inject Service7 Service7
+            @inject Service8 Service8
+            @inject Service9 Service9
+            @inject Service10 Service10
+            @inject Service11 Service11
+            @inject Service12 Service12
+            @inject Service13 Service13
+            @inject Service14 Service14
+            @inject Service15 Service15
+            @inject Service16 Service16
+            @inject Service17 Service17
+            @inject Service18 Service18
+            @inject Service19 Service19
+            @inject Service20 Service20
+            @inject Service21 Service21
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = await GetDiagnosticsAsync("/Test/Counter.razor", razor);
+        Diagnostic[] ruleDiagnostics = diagnostics.Where(d => d.Id == BlazorCodeBehindAnalyzer.DiagnosticId).ToArray();
+
+        await Assert.That(ruleDiagnostics.Length).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task Fix_CreatesRazorCodeBehindDocument()
     {
         using var workspace = new AdhocWorkspace();
@@ -97,7 +131,7 @@ public class BlazorCodeBehindAnalyzerTests
             .AddMetadataReferences(projectId, GetAllReferences())
             .AddDocument(hostDocumentId, "Host.cs", SourceText.From("public class Host {}"));
 
-        Assert.True(workspace.TryApplyChanges(solution));
+        await Assert.That(workspace.TryApplyChanges(solution)).IsEqualTo(true);
 
         Document hostDocument = workspace.CurrentSolution.GetDocument(hostDocumentId)!;
         Location location = Location.Create(
@@ -105,7 +139,7 @@ public class BlazorCodeBehindAnalyzerTests
             new TextSpan(0, 5),
             new LinePositionSpan(new LinePosition(0, 0), new LinePosition(0, 5)));
 
-        Diagnostic diagnostic = Diagnostic.Create(BlazorCodeBehindAnalyzer.Rule, location, 21);
+        Diagnostic diagnostic = Diagnostic.Create(BlazorCodeBehindAnalyzer.Rule, location, "@code block", 21);
         var fixer = new BlazorCodeBehindFixer();
         var actions = new List<CodeAction>();
         var context = new CodeFixContext(
@@ -115,17 +149,21 @@ public class BlazorCodeBehindAnalyzerTests
             CancellationToken.None);
 
         await fixer.RegisterCodeFixesAsync(context);
+        await Assert.That(actions.Count).IsEqualTo(1);
 
-        CodeAction actionToApply = Assert.Single(actions);
-        var operations = await actionToApply.GetOperationsAsync(CancellationToken.None);
-        ApplyChangesOperation applyChanges = Assert.Single(operations.OfType<ApplyChangesOperation>());
-        Solution changedSolution = applyChanges.ChangedSolution;
+        var operations = await actions[0].GetOperationsAsync(CancellationToken.None);
+        ApplyChangesOperation[] applyChangesOperations = operations.OfType<ApplyChangesOperation>().ToArray();
+        await Assert.That(applyChangesOperations.Length).IsEqualTo(1);
+        Solution changedSolution = applyChangesOperations[0].ChangedSolution;
 
-        Document codeBehindDocument = Assert.Single(
-            changedSolution.GetProject(projectId)!.Documents.Where(d => d.Name == "Counter.razor.cs"));
+        Document[] codeBehindDocuments = changedSolution.GetProject(projectId)!
+            .Documents
+            .Where(d => d.Name == "Counter.razor.cs")
+            .ToArray();
+        await Assert.That(codeBehindDocuments.Length).IsEqualTo(1);
 
-        string content = (await codeBehindDocument.GetTextAsync()).ToString();
-        Assert.Contains("public partial class Counter : ComponentBase", content);
+        string content = (await codeBehindDocuments[0].GetTextAsync()).ToString();
+        await Assert.That(content.Contains("public partial class Counter : ComponentBase")).IsEqualTo(true);
     }
 
     private static async Task<ImmutableArray<Diagnostic>> GetDiagnosticsAsync(string path, string razorContent)

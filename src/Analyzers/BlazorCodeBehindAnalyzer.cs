@@ -9,25 +9,25 @@ using Microsoft.CodeAnalysis.Text;
 namespace Analyzers;
 
 /// <summary>
-/// Flags Blazor Razor components that contain large <c>@code</c> blocks.
+/// Flags Blazor Razor components that contain large <c>@code</c> blocks or too many <c>@inject</c> directives.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class BlazorCodeBehindAnalyzer : DiagnosticAnalyzer
 {
     /// <summary>The diagnostic ID for this analyzer.</summary>
-    public const string DiagnosticId = "XML008";
+    public const string DiagnosticId = "XML009";
 
     private const int MaxNonEmptyLines = 20;
 
     /// <summary>The diagnostic descriptor for this analyzer.</summary>
     public static readonly DiagnosticDescriptor Rule = new DiagnosticDescriptor(
         id: DiagnosticId,
-        title: "Large @code block should be moved to code-behind",
-        messageFormat: "The @code block contains {0} non-empty lines and should be moved to a .razor.cs code-behind file",
+        title: "Large Razor member region should be moved to code-behind",
+        messageFormat: "The {0} contains {1} non-empty lines and should be moved to a .razor.cs code-behind file",
         category: "Maintainability",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Blazor components with large @code blocks should be refactored into code-behind files.");
+        description: "Blazor components with large @code blocks or many @inject directives should be refactored into code-behind files.");
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
@@ -50,6 +50,12 @@ public sealed class BlazorCodeBehindAnalyzer : DiagnosticAnalyzer
             return;
 
         string content = text.ToString();
+        AnalyzeCodeBlocks(context, text, content);
+        AnalyzeInjectDirectives(context, text);
+    }
+
+    private static void AnalyzeCodeBlocks(AdditionalFileAnalysisContext context, SourceText text, string content)
+    {
         int searchIndex = 0;
 
         while (searchIndex < content.Length)
@@ -81,10 +87,53 @@ public sealed class BlazorCodeBehindAnalyzer : DiagnosticAnalyzer
                 var span = new TextSpan(codeDirectiveIndex, "@code".Length);
                 var lineSpan = text.Lines.GetLinePositionSpan(span);
                 var location = Location.Create(context.AdditionalFile.Path, span, lineSpan);
-                context.ReportDiagnostic(Diagnostic.Create(Rule, location, nonEmptyLines));
+                context.ReportDiagnostic(Diagnostic.Create(Rule, location, "@code block", nonEmptyLines));
             }
 
             searchIndex = closingBraceIndex + 1;
+        }
+    }
+
+    private static void AnalyzeInjectDirectives(AdditionalFileAnalysisContext context, SourceText text)
+    {
+        int injectLines = 0;
+        TextSpan firstInjectSpan = default;
+        bool foundFirstInject = false;
+
+        foreach (TextLine line in text.Lines)
+        {
+            string lineText = line.ToString();
+            int nonWhitespaceIndex = 0;
+            while (nonWhitespaceIndex < lineText.Length && char.IsWhiteSpace(lineText[nonWhitespaceIndex]))
+                nonWhitespaceIndex++;
+
+            if (nonWhitespaceIndex >= lineText.Length)
+                continue;
+
+            string trimmed = lineText.Substring(nonWhitespaceIndex);
+            if (!trimmed.StartsWith("@inject", StringComparison.Ordinal))
+                continue;
+
+            int afterDirectiveIndex = nonWhitespaceIndex + "@inject".Length;
+            if (afterDirectiveIndex < lineText.Length &&
+                !char.IsWhiteSpace(lineText[afterDirectiveIndex]))
+            {
+                continue;
+            }
+
+            injectLines++;
+            if (!foundFirstInject)
+            {
+                firstInjectSpan = new TextSpan(line.Start + nonWhitespaceIndex, "@inject".Length);
+                foundFirstInject = true;
+            }
+        }
+
+        if (foundFirstInject && injectLines > MaxNonEmptyLines)
+        {
+            var lineSpan = text.Lines.GetLinePositionSpan(firstInjectSpan);
+            var location = Location.Create(context.AdditionalFile.Path, firstInjectSpan, lineSpan);
+            context.ReportDiagnostic(Diagnostic.Create(Rule, location, "@inject directives", injectLines));
         }
     }
 
