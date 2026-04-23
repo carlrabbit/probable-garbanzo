@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Composition;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
@@ -65,7 +66,7 @@ public sealed class BlazorCodeBehindFixer : CodeFixProvider
         Solution solution = project.Solution;
 
         string componentName = Path.GetFileNameWithoutExtension(razorPath);
-        string className = SyntaxFacts.IsValidIdentifier(componentName) ? componentName : "RazorComponent";
+        string className = CreateClassName(componentName);
         string namespaceName = project.DefaultNamespace ?? project.Name;
         string codeBehindFileName = Path.GetFileName(razorPath) + ".cs";
         string codeBehindPath = Path.Combine(Path.GetDirectoryName(razorPath) ?? string.Empty, codeBehindFileName);
@@ -88,5 +89,34 @@ public partial class {className} : ComponentBase
             filePath: codeBehindPath);
 
         return Task.FromResult(changedSolution);
+    }
+
+    private static string CreateClassName(string componentName)
+    {
+        if (SyntaxFacts.IsValidIdentifier(componentName))
+            return componentName;
+
+        var builder = new StringBuilder(componentName.Length + 16);
+        for (int i = 0; i < componentName.Length; i++)
+        {
+            char ch = componentName[i];
+            bool valid = i == 0
+                ? SyntaxFacts.IsIdentifierStartCharacter(ch)
+                : SyntaxFacts.IsIdentifierPartCharacter(ch);
+
+            builder.Append(valid ? ch : '_');
+        }
+
+        if (builder.Length == 0 || !SyntaxFacts.IsIdentifierStartCharacter(builder[0]))
+            builder.Insert(0, '_');
+
+        string sanitized = builder.ToString();
+        while (sanitized.Length > 0 && sanitized[0] == '_')
+            sanitized = sanitized.Substring(1);
+
+        if (string.IsNullOrWhiteSpace(sanitized) || !SyntaxFacts.IsIdentifierStartCharacter(sanitized[0]))
+            sanitized = "RazorComponent" + Math.Abs(componentName.GetHashCode()).ToString();
+
+        return sanitized;
     }
 }

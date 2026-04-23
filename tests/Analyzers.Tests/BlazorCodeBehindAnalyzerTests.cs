@@ -49,8 +49,7 @@ public class BlazorCodeBehindAnalyzerTests
 
         ImmutableArray<Diagnostic> diagnostics = await GetDiagnosticsAsync("/Test/Counter.razor", razor);
 
-        Diagnostic diagnostic = Assert.Single(diagnostics.Where(d => d.Id == BlazorCodeBehindAnalyzer.DiagnosticId));
-        Assert.Equal(BlazorCodeBehindAnalyzer.DiagnosticId, diagnostic.Id);
+        _ = Assert.Single(diagnostics.Where(d => d.Id == BlazorCodeBehindAnalyzer.DiagnosticId));
     }
 
     [Fact]

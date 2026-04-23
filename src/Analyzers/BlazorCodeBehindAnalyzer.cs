@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
@@ -56,6 +58,12 @@ public sealed class BlazorCodeBehindAnalyzer : DiagnosticAnalyzer
             if (codeDirectiveIndex < 0)
                 break;
 
+            if (!IsValidCodeDirective(content, codeDirectiveIndex))
+            {
+                searchIndex = codeDirectiveIndex + "@code".Length;
+                continue;
+            }
+
             int openingBraceIndex = FindOpeningBrace(content, codeDirectiveIndex + "@code".Length);
             if (openingBraceIndex < 0)
             {
@@ -80,6 +88,37 @@ public sealed class BlazorCodeBehindAnalyzer : DiagnosticAnalyzer
         }
     }
 
+    private static bool IsValidCodeDirective(string content, int codeDirectiveIndex)
+    {
+        int beforeIndex = codeDirectiveIndex - 1;
+        if (beforeIndex >= 0 && (char.IsLetterOrDigit(content[beforeIndex]) || content[beforeIndex] == '_'))
+            return false;
+
+        int afterIndex = codeDirectiveIndex + "@code".Length;
+        if (afterIndex < content.Length &&
+            !char.IsWhiteSpace(content[afterIndex]) &&
+            content[afterIndex] != '{')
+        {
+            return false;
+        }
+
+        return !IsInsideComment(content, codeDirectiveIndex);
+    }
+
+    private static bool IsInsideComment(string content, int index)
+    {
+        string contentBeforeIndex = content.Substring(0, index);
+
+        int razorCommentStart = contentBeforeIndex.LastIndexOf("@*", StringComparison.Ordinal);
+        int razorCommentEnd = contentBeforeIndex.LastIndexOf("*@", StringComparison.Ordinal);
+        if (razorCommentStart > razorCommentEnd)
+            return true;
+
+        int htmlCommentStart = contentBeforeIndex.LastIndexOf("<!--", StringComparison.Ordinal);
+        int htmlCommentEnd = contentBeforeIndex.LastIndexOf("-->", StringComparison.Ordinal);
+        return htmlCommentStart > htmlCommentEnd;
+    }
+
     private static int FindOpeningBrace(string content, int startIndex)
     {
         for (int i = startIndex; i < content.Length; i++)
@@ -96,23 +135,19 @@ public sealed class BlazorCodeBehindAnalyzer : DiagnosticAnalyzer
 
     private static int FindClosingBrace(string content, int openingBraceIndex)
     {
-        int depth = 0;
-        for (int i = openingBraceIndex; i < content.Length; i++)
+        const string classPrefix = "class __Generated ";
+        string classText = classPrefix + content.Substring(openingBraceIndex);
+        var compilationUnit = SyntaxFactory.ParseCompilationUnit(classText);
+
+        if (compilationUnit.Members.Count == 0 ||
+            compilationUnit.Members[0] is not ClassDeclarationSyntax classDeclaration ||
+            classDeclaration.CloseBraceToken.IsMissing)
         {
-            char ch = content[i];
-            if (ch == '{')
-            {
-                depth++;
-            }
-            else if (ch == '}')
-            {
-                depth--;
-                if (depth == 0)
-                    return i;
-            }
+            return -1;
         }
 
-        return -1;
+        int relativeCloseBraceIndex = classDeclaration.CloseBraceToken.SpanStart - classPrefix.Length;
+        return openingBraceIndex + relativeCloseBraceIndex;
     }
 
     private static int CountNonEmptyLines(string content, int bodyStartIndex, int bodyEndIndex)
