@@ -110,8 +110,8 @@ public sealed class BlazorCodeBehindAnalyzer : DiagnosticAnalyzer
             if (nonWhitespaceIndex >= lineText.Length)
                 continue;
 
-            string trimmed = lineText.Substring(nonWhitespaceIndex);
-            if (!trimmed.StartsWith("@inject", StringComparison.Ordinal))
+            ReadOnlySpan<char> trimmed = lineText.AsSpan(nonWhitespaceIndex);
+            if (!trimmed.StartsWith("@inject".AsSpan(), StringComparison.Ordinal))
                 continue;
 
             int afterDirectiveIndex = nonWhitespaceIndex + "@inject".Length;
