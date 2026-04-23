@@ -12,3 +12,4 @@ XML004 | Documentation | Warning | TUnitTestPropertyConventionAnalyzer
 XML005 | Formatting | Warning | ConsecutiveEmptyLinesAnalyzer
 XML006 | Formatting | Warning | MultipleSpacesBetweenTokensAnalyzer
 XML007 | Documentation | Warning | AssertArrangeActAnalyzer
+XML008 | Documentation | Warning | EmptyInheritdocTagAnalyzer
