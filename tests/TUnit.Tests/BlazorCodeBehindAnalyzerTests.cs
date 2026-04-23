@@ -120,16 +120,31 @@ public class BlazorCodeBehindAnalyzerTests
     }
 
     [Test]
-    public async Task Fix_CreatesRazorCodeBehindDocument()
+    public async Task Fix_MovesCodeAndInjectsToCodeBehindAndRemovesFromRazor()
     {
         using var workspace = new AdhocWorkspace();
         ProjectId projectId = ProjectId.CreateNewId();
         DocumentId hostDocumentId = DocumentId.CreateNewId(projectId);
+        DocumentId razorDocumentId = DocumentId.CreateNewId(projectId);
+
+        const string razorContent = """
+            @inject IService MyService
+            <h3>Counter</h3>
+
+            @code {
+                private int _count = 0;
+                private void IncrementCount()
+                {
+                    _count++;
+                }
+            }
+            """;
 
         Solution solution = workspace.CurrentSolution
             .AddProject(projectId, "TestProject", "TestProject", LanguageNames.CSharp)
             .AddMetadataReferences(projectId, GetAllReferences())
-            .AddDocument(hostDocumentId, "Host.cs", SourceText.From("public class Host {}"));
+            .AddDocument(hostDocumentId, "Host.cs", SourceText.From("public class Host {}"))
+            .AddDocument(razorDocumentId, "Counter.razor", SourceText.From(razorContent), filePath: "/Test/Counter.razor");
 
         await Assert.That(workspace.TryApplyChanges(solution)).IsEqualTo(true);
 
@@ -162,8 +177,18 @@ public class BlazorCodeBehindAnalyzerTests
             .ToArray();
         await Assert.That(codeBehindDocuments.Length).IsEqualTo(1);
 
-        string content = (await codeBehindDocuments[0].GetTextAsync()).ToString();
-        await Assert.That(content.Contains("public partial class Counter : ComponentBase")).IsEqualTo(true);
+        string codeBehind = (await codeBehindDocuments[0].GetTextAsync()).ToString();
+        await Assert.That(codeBehind.Contains("public partial class Counter : ComponentBase")).IsEqualTo(true);
+        await Assert.That(codeBehind.Contains("[Inject]")).IsEqualTo(true);
+        await Assert.That(codeBehind.Contains("public IService MyService { get; set; } = default!;")).IsEqualTo(true);
+        await Assert.That(codeBehind.Contains("private int _count = 0;")).IsEqualTo(true);
+        await Assert.That(codeBehind.Contains("private void IncrementCount()")).IsEqualTo(true);
+
+        Document razorDocument = changedSolution.GetDocument(razorDocumentId)!;
+        string updatedRazor = (await razorDocument.GetTextAsync()).ToString();
+        await Assert.That(updatedRazor.Contains("@inject")).IsEqualTo(false);
+        await Assert.That(updatedRazor.Contains("@code")).IsEqualTo(false);
+        await Assert.That(updatedRazor.Contains("<h3>Counter</h3>")).IsEqualTo(true);
     }
 
     private static async Task<ImmutableArray<Diagnostic>> GetDiagnosticsAsync(string path, string razorContent)
