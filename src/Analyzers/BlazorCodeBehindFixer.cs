@@ -23,6 +23,8 @@ namespace Analyzers;
 [Shared]
 public sealed class BlazorCodeBehindFixer : CodeFixProvider
 {
+    private const string NewLine = "\n";
+
     /// <inheritdoc/>
     public override ImmutableArray<string> FixableDiagnosticIds =>
         ImmutableArray.Create(BlazorCodeBehindAnalyzer.DiagnosticId);
@@ -87,20 +89,18 @@ public sealed class BlazorCodeBehindFixer : CodeFixProvider
             changedSolution = changedSolution.WithDocumentText(razorDocument.Id, SourceText.From(updatedRazor, Encoding.UTF8));
         }
 
-        string injectMembers = string.Join(
-            "\n",
-            injectDirectives.Select(i => $"    [Inject]\n    public {i.TypeName} {i.PropertyName} {{ get; set; }} = default!;"));
+        string injectMembers = string.Join(NewLine, injectDirectives.Select(FormatInjectMember));
 
         string codeMembers = string.IsNullOrWhiteSpace(movedCodeMembers)
             ? string.Empty
-            : "    " + movedCodeMembers.Replace("\n", "\n    ");
+            : "    " + movedCodeMembers.Replace(NewLine, NewLine + "    ");
 
-        string classBody = string.Empty;
+        var classSections = new List<string>();
         if (!string.IsNullOrWhiteSpace(injectMembers))
-            classBody = injectMembers;
-
+            classSections.Add(injectMembers);
         if (!string.IsNullOrWhiteSpace(codeMembers))
-            classBody = string.IsNullOrWhiteSpace(classBody) ? codeMembers : classBody + "\n\n" + codeMembers;
+            classSections.Add(codeMembers);
+        string classBody = string.Join(NewLine + NewLine, classSections);
 
         string content =
 $@"using Microsoft.AspNetCore.Components;
@@ -139,7 +139,7 @@ public partial class {className} : ComponentBase
                 continue;
 
             ReadOnlySpan<char> trimmed = lineText.AsSpan(nonWhitespaceIndex);
-            if (!trimmed.StartsWith("@inject".AsSpan(), StringComparison.Ordinal))
+            if (!trimmed.StartsWith("@inject", StringComparison.Ordinal))
                 continue;
 
             int afterDirectiveIndex = nonWhitespaceIndex + "@inject".Length;
@@ -211,7 +211,7 @@ public partial class {className} : ComponentBase
 
     private static int FindClosingBrace(string content, int openingBraceIndex)
     {
-        const string classPrefix = "class __Generated ";
+        const string classPrefix = "class __ParserHelper ";
         string classText = classPrefix + content.Substring(openingBraceIndex);
         CompilationUnitSyntax compilationUnit = SyntaxFactory.ParseCompilationUnit(classText);
 
@@ -256,11 +256,14 @@ public partial class {className} : ComponentBase
                 continue;
             }
 
-            lines[i] = lines[i].Substring(Math.Min(minIndent, lines[i].Length));
+            lines[i] = lines[i].Substring(minIndent);
         }
 
         return string.Join("\n", lines).Trim('\n');
     }
+
+    private static string FormatInjectMember((string TypeName, string PropertyName) inject) =>
+        $"    [Inject]{NewLine}    public {inject.TypeName} {inject.PropertyName} {{ get; set; }} = default!;";
 
     private static string CreateClassName(string componentName)
     {
