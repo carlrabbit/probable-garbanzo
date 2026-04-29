@@ -146,7 +146,8 @@ public sealed class TUnitClassTestTypeAnalyzer : DiagnosticAnalyzer
                    IsInTUnitNamespace(attributeType.ContainingNamespace);
         }
 
-        // When the symbol cannot be resolved, assume it may be a TUnit attribute (e.g. compilation errors).
+        // When the symbol cannot be resolved (e.g. missing using directive or compilation error),
+        // assume the attribute may be a TUnit [Test] to avoid silently missing diagnostics.
         return true;
     }
 
@@ -159,7 +160,8 @@ public sealed class TUnitClassTestTypeAnalyzer : DiagnosticAnalyzer
                    IsInTUnitNamespace(attributeType.ContainingNamespace);
         }
 
-        // When the symbol cannot be resolved, assume it may be a TUnit attribute (e.g. compilation errors).
+        // When the symbol cannot be resolved (e.g. missing using directive or compilation error),
+        // assume the attribute may be a TUnit [Property] to avoid silently missing diagnostics.
         return true;
     }
 
