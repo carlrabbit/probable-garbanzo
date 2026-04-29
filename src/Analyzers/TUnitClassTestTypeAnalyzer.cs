@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -142,9 +143,10 @@ public sealed class TUnitClassTestTypeAnalyzer : DiagnosticAnalyzer
         {
             INamedTypeSymbol attributeType = symbol.ContainingType;
             return attributeType.Name == "TestAttribute" &&
-                   attributeType.ContainingNamespace.ToDisplayString().StartsWith("TUnit");
+                   IsInTUnitNamespace(attributeType.ContainingNamespace);
         }
 
+        // When the symbol cannot be resolved, assume it may be a TUnit attribute (e.g. compilation errors).
         return true;
     }
 
@@ -154,10 +156,17 @@ public sealed class TUnitClassTestTypeAnalyzer : DiagnosticAnalyzer
         {
             INamedTypeSymbol attributeType = symbol.ContainingType;
             return attributeType.Name == "PropertyAttribute" &&
-                   attributeType.ContainingNamespace.ToDisplayString().StartsWith("TUnit");
+                   IsInTUnitNamespace(attributeType.ContainingNamespace);
         }
 
+        // When the symbol cannot be resolved, assume it may be a TUnit attribute (e.g. compilation errors).
         return true;
+    }
+
+    private static bool IsInTUnitNamespace(INamespaceSymbol namespaceSymbol)
+    {
+        string ns = namespaceSymbol.ToDisplayString();
+        return ns == "TUnit" || ns.StartsWith("TUnit.", StringComparison.Ordinal);
     }
 
     private static bool IsPotentialTUnitAttributeName(
