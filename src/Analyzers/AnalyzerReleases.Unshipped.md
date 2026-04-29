@@ -18,3 +18,4 @@ XML010 | Documentation | Warning | WholesomeCommentAnalyzer
 XML011 | Documentation | Warning | WholesomeCommentAnalyzer
 XML012 | Documentation | Warning | WholesomeCommentAnalyzer
 XML013 | Documentation | Warning | WholesomeCommentAnalyzer
+XML014 | Documentation | Warning | TUnitClassTestTypeAnalyzer
