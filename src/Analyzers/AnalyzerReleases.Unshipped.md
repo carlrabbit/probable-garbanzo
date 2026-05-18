@@ -19,3 +19,4 @@ XML011 | Documentation | Warning | WholesomeCommentAnalyzer
 XML012 | Documentation | Warning | WholesomeCommentAnalyzer
 XML013 | Documentation | Warning | WholesomeCommentAnalyzer
 XML014 | Documentation | Warning | TUnitClassTestTypeAnalyzer
+XML015 | Documentation | Warning | TaskAsyncResultDocumentationAnalyzer
