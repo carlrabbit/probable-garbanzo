@@ -5,6 +5,10 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
+DOC001 | Documentation | Warning | XmlDocumentationQualityAnalyzer
+DOC002 | Documentation | Warning | XmlDocumentationQualityAnalyzer
+DOC003 | Documentation | Warning | XmlDocumentationQualityAnalyzer
+DOC004 | Documentation | Warning | XmlDocumentationQualityAnalyzer
 XML001 | Documentation | Warning | ClassXmlCommentAnalyzer
 XML002 | Documentation | Warning | EmptyParamTagAnalyzer
 XML003 | Documentation | Warning | EmptyReturnsTagAnalyzer
