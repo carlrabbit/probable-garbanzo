@@ -29,6 +29,12 @@ public abstract class TUnitDiagnosticVerifier<TAnalyzer, TFixer>
     protected virtual IEnumerable<MetadataReference> AdditionalReferences =>
         Enumerable.Empty<MetadataReference>();
 
+    /// <summary>
+    /// Override to supply analyzer AdditionalFiles as (fileName, content) tuples.
+    /// </summary>
+    protected virtual IEnumerable<(string fileName, string content)> AdditionalFiles =>
+        Enumerable.Empty<(string fileName, string content)>();
+
     // ---------------------------------------------------------------------------
     // Protected verify helpers (called from [Test] methods)
     // ---------------------------------------------------------------------------
@@ -83,6 +89,13 @@ public abstract class TUnitDiagnosticVerifier<TAnalyzer, TFixer>
             .AddMetadataReferences(projectId, GetAllReferences())
             .AddDocument(documentId, "Test.cs", SourceText.From(source));
 
+        int additionalIndex = 0;
+        foreach ((string fileName, string content) in AdditionalFiles)
+        {
+            DocumentId additionalId = DocumentId.CreateNewId(projectId, $"Additional_{additionalIndex++}");
+            solution = solution.AddAdditionalDocument(additionalId, fileName, SourceText.From(content));
+        }
+
         if (!workspace.TryApplyChanges(solution))
             throw new InvalidOperationException("Failed to apply changes to the AdhocWorkspace.");
 
@@ -90,8 +103,13 @@ public abstract class TUnitDiagnosticVerifier<TAnalyzer, TFixer>
         var compilation = await document.Project.GetCompilationAsync();
 
         var analyzer = new TAnalyzer();
+        var analyzerOptions = new AnalyzerOptions(
+            AdditionalFiles
+                .Select(static a => (AdditionalText)new InMemoryAdditionalText(a.fileName, a.content))
+                .ToImmutableArray());
         var compilationWithAnalyzers = compilation!.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(analyzer));
+            ImmutableArray.Create<DiagnosticAnalyzer>(analyzer),
+            new CompilationWithAnalyzersOptions(analyzerOptions, null, true, false));
 
         var allDiagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
         var ruleDiagnostics = allDiagnostics
@@ -150,8 +168,13 @@ public abstract class TUnitDiagnosticVerifier<TAnalyzer, TFixer>
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var analyzer = new TAnalyzer();
+        var analyzerOptions = new AnalyzerOptions(
+            AdditionalFiles
+                .Select(static a => (AdditionalText)new InMemoryAdditionalText(a.fileName, a.content))
+                .ToImmutableArray());
         var compilationWithAnalyzers = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(analyzer));
+            ImmutableArray.Create<DiagnosticAnalyzer>(analyzer),
+            new CompilationWithAnalyzersOptions(analyzerOptions, null, true, false));
 
         return await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
     }
@@ -190,5 +213,20 @@ public abstract class TUnitDiagnosticVerifier<TAnalyzer, TFixer>
         }
 
         return (sb.ToString(), spans.ToArray());
+    }
+
+    private sealed class InMemoryAdditionalText : AdditionalText
+    {
+        private readonly SourceText text;
+
+        public InMemoryAdditionalText(string path, string content)
+        {
+            Path = path;
+            text = SourceText.From(content);
+        }
+
+        public override string Path { get; }
+
+        public override SourceText GetText(CancellationToken cancellationToken = default) => text;
     }
 }
