@@ -131,6 +131,31 @@ public class TaskAsyncResultDocumentationAnalyzerTests
     }
 
     [Fact]
+    public async Task Fix_WorksForInterfaceMethodDeclaration()
+    {
+        await VerifyDiagnosticAndFixAsync(
+            """
+            using System.Threading.Tasks;
+
+            public interface IMyInterface
+            {
+                /// <summary>Saves the value.</summary>
+                Task [|SaveAsync|]();
+            }
+            """,
+            """
+            using System.Threading.Tasks;
+
+            public interface IMyInterface
+            {
+                /// <summary>Saves the value.</summary>
+                /// <returns>A task that represents the asynchronous save operation.</returns>
+                Task SaveAsync();
+            }
+            """);
+    }
+
+    [Fact]
     public async Task NoDiagnostic_WhenReturnsTagHasContent()
     {
         await VerifyNoDiagnosticAsync("""
@@ -140,6 +165,46 @@ public class TaskAsyncResultDocumentationAnalyzerTests
             {
                 /// <summary>Saves the value.</summary>
                 /// <returns>A task that represents the asynchronous save operation.</returns>
+                public Task SaveAsync() => Task.CompletedTask;
+            }
+            """);
+    }
+
+    [Fact]
+    public async Task NoDiagnostic_WhenInheritdocReferencesBaseTypeReturnsTag()
+    {
+        await VerifyNoDiagnosticAsync("""
+            using System.Threading.Tasks;
+
+            public class BaseClass
+            {
+                /// <returns>A task that represents the asynchronous save operation.</returns>
+                public virtual Task SaveAsync() => Task.CompletedTask;
+            }
+
+            public class DerivedClass : BaseClass
+            {
+                /// <inheritdoc/>
+                public override Task SaveAsync() => Task.CompletedTask;
+            }
+            """);
+    }
+
+    [Fact]
+    public async Task NoDiagnostic_WhenInheritdocReferencesBaseInterfaceReturnsTag()
+    {
+        await VerifyNoDiagnosticAsync("""
+            using System.Threading.Tasks;
+
+            public interface IBaseInterface
+            {
+                /// <returns>A task that represents the asynchronous save operation.</returns>
+                Task SaveAsync();
+            }
+
+            public class Implementation : IBaseInterface
+            {
+                /// <inheritdoc/>
                 public Task SaveAsync() => Task.CompletedTask;
             }
             """);

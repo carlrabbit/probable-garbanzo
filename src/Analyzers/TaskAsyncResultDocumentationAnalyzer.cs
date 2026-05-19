@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Immutable;
+using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -56,10 +57,13 @@ public sealed class TaskAsyncResultDocumentationAnalyzer : DiagnosticAnalyzer
         if (methodSymbol?.DeclaredAccessibility == Accessibility.Private)
             return;
 
-        if (!IsNonGenericTask(methodSymbol?.ReturnType))
+        if (methodSymbol is null || !IsNonGenericTask(methodSymbol.ReturnType))
             return;
 
         if (HasNonEmptyReturnsTag(methodDeclaration))
+            return;
+
+        if (HasInheritdocTag(methodDeclaration) && HasInheritedNonEmptyReturnsTag(methodSymbol))
             return;
 
         context.ReportDiagnostic(
@@ -105,6 +109,107 @@ public sealed class TaskAsyncResultDocumentationAnalyzer : DiagnosticAnalyzer
                 }
             }
 
+            return false;
+        }
+
+        return false;
+    }
+
+    private static bool HasInheritdocTag(MethodDeclarationSyntax methodDeclaration)
+    {
+        foreach (SyntaxTrivia trivia in methodDeclaration.GetLeadingTrivia())
+        {
+            if (!trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) &&
+                !trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+            {
+                continue;
+            }
+
+            if (trivia.GetStructure() is not DocumentationCommentTriviaSyntax docComment)
+                continue;
+
+            foreach (XmlNodeSyntax node in docComment.Content)
+            {
+                if (node is XmlElementSyntax element &&
+                    element.StartTag?.Name?.LocalName.Text == "inheritdoc")
+                {
+                    return true;
+                }
+
+                if (node is XmlEmptyElementSyntax emptyElement &&
+                    emptyElement.Name.LocalName.Text == "inheritdoc")
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return false;
+    }
+
+    private static bool HasInheritedNonEmptyReturnsTag(IMethodSymbol methodSymbol)
+    {
+        if (methodSymbol.OverriddenMethod is IMethodSymbol overriddenMethod &&
+            HasNonEmptyReturnsTag(overriddenMethod))
+        {
+            return true;
+        }
+
+        foreach (IMethodSymbol explicitImplementation in methodSymbol.ExplicitInterfaceImplementations)
+        {
+            if (HasNonEmptyReturnsTag(explicitImplementation))
+                return true;
+        }
+
+        INamedTypeSymbol? containingType = methodSymbol.ContainingType;
+        if (containingType is null)
+            return false;
+
+        foreach (INamedTypeSymbol interfaceSymbol in containingType.AllInterfaces)
+        {
+            foreach (ISymbol member in interfaceSymbol.GetMembers(methodSymbol.Name))
+            {
+                if (member is not IMethodSymbol interfaceMethod)
+                    continue;
+
+                ISymbol? implementation = containingType.FindImplementationForInterfaceMember(interfaceMethod);
+                if (!SymbolEqualityComparer.Default.Equals(implementation, methodSymbol))
+                    continue;
+
+                if (HasNonEmptyReturnsTag(interfaceMethod))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasNonEmptyReturnsTag(IMethodSymbol methodSymbol)
+    {
+        string? xmlDocumentation = methodSymbol.GetDocumentationCommentXml();
+        if (string.IsNullOrWhiteSpace(xmlDocumentation))
+            return false;
+
+        try
+        {
+            XDocument document = XDocument.Parse(xmlDocumentation);
+
+            foreach (XElement returnsElement in document.Descendants())
+            {
+                if (returnsElement.Name.LocalName != "returns")
+                    continue;
+
+                if (!string.IsNullOrWhiteSpace(returnsElement.Value))
+                    return true;
+
+                if (returnsElement.HasElements)
+                    return true;
+            }
+        }
+        catch
+        {
             return false;
         }
 
